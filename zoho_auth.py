@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def get_access_token() -> str:
-    accounts_url = os.getenv("ZOHO_ACCOUNTS_URL", "https://accounts.zoho.com")
+def refresh_access_token() -> str:
+    accounts_url = os.getenv("ZOHO_ACCOUNTS_URL", "https://accounts.zoho.com").rstrip("/")
     client_id = os.getenv("ZOHO_CLIENT_ID")
     client_secret = os.getenv("ZOHO_CLIENT_SECRET")
     refresh_token = os.getenv("ZOHO_REFRESH_TOKEN")
@@ -29,3 +29,6 @@ def get_access_token() -> str:
         raise RuntimeError(f"Failed to refresh access token: {data}")
 
     return data["access_token"]
+
+def get_access_token() -> str:
+    return refresh_access_token()
