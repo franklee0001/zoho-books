@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: zoho
+      POSTGRES_USER: zoho
+      POSTGRES_PASSWORD: zoho
+    ports:
+      - "5432:5432"
+    volumes:
+      - zoho_pg_data:/var/lib/postgresql/data
+
+volumes:
+  zoho_pg_data:

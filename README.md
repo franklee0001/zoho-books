@@ -71,3 +71,31 @@ Uses existing `data/raw/<timestamp>/invoices.jsonl` exports only (no API calls, 
   - `python scripts/07_monthly_invoices.py --month 2026-01 --src data/raw/20260114_235147/invoices.jsonl`
 - Custom output directory:
   - `python scripts/07_monthly_invoices.py --month 2026-01 --outdir data/raw/20260114_235147/out`
+
+## Postgres invoice pipeline
+Loads raw invoices JSONL into Postgres and upserts normalized tables.
+
+1) Start Postgres:
+   - `docker compose up -d`
+2) Run migrations:
+   - `docker compose exec -T postgres psql -U zoho -d zoho -f migrations/001_init.sql`
+3) Export data (JSONL):
+   - `python export.py --resources invoices,contacts,items --out data/raw`
+4) Load raw invoices:
+   - `python scripts/load_raw_invoices.py --src data/raw/<timestamp>/invoices.jsonl`
+5) Transform to normalized tables:
+   - `python scripts/transform_invoices.py`
+
+Environment variables (optional, defaults match docker-compose):
+- `PGHOST` (default: localhost)
+- `PGPORT` (default: 5432)
+- `PGDATABASE` (default: zoho)
+- `PGUSER` (default: zoho)
+- `PGPASSWORD` (default: zoho)
+
+Validation SQL:
+1) `select count(*) from invoice_raw;`
+2) `select count(*) from invoices;`
+3) `select invoice_id,count(*) from invoices group by invoice_id having count(*)>1;`
+4) `select sum(balance) from invoices where status='overdue';`
+5) `select customer_name,sum(balance) from invoices where balance>0 group by customer_name order by sum(balance) desc limit 20;`
