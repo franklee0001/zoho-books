@@ -42,6 +42,7 @@ Optional:
 - Resource probe: `python scripts/05_resource_probe.py`
 - Resource probe with extras:
   - `python scripts/05_resource_probe.py --extra payments,creditnotes,estimates,salesorders,purchaseorders,bills`
+- Monthly invoices: `python scripts/07_monthly_invoices.py --month 2026-01`
 - `data/` is local-only (do not commit)
 
 Notes:
@@ -60,10 +61,12 @@ Notes:
 ## Monthly invoices
 Uses existing `data/raw/<timestamp>/invoices.jsonl` exports only (no API calls, no secrets needed once data exists).
 
-- macOS:
-  - `python3 scripts/07_monthly_invoices.py --month 2026-01`
-- Windows:
+- macOS/Windows common flow:
+  - `python -m venv .venv`
+  - `python -m pip install -r requirements.txt`
+  - `python export.py --resources invoices,contacts,items --out data/raw`
   - `python scripts/07_monthly_invoices.py --month 2026-01`
+- Default month (Asia/Seoul): `python scripts/07_monthly_invoices.py`
 - Custom source:
   - `python scripts/07_monthly_invoices.py --month 2026-01 --src data/raw/20260114_235147/invoices.jsonl`
 - Custom output directory:

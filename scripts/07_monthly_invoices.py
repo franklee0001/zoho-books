@@ -2,8 +2,10 @@ import argparse
 import csv
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
+from zoneinfo import ZoneInfo
 
 TIMESTAMP_DIR_RE = r"^\d{8}_\d{6}$"
 
@@ -12,12 +14,14 @@ CSV_COLUMNS = [
     "invoice_number",
     "date",
     "due_date",
+    "customer_id",
     "customer_name",
     "status",
     "total",
     "balance",
     "currency_code",
-    "email",
+    "last_modified_time",
+    "line_items_count",
 ]
 
 
@@ -30,6 +34,11 @@ def parse_month(month: str) -> str:
     if not (1 <= int(mon) <= 12):
         raise ValueError("--month must be YYYY-MM")
     return f"{year}-{mon}"
+
+
+def current_month_seoul() -> str:
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
+    return now.strftime("%Y-%m")
 
 
 def find_latest_invoices_jsonl(base_dir: Path) -> Optional[Path]:
@@ -110,16 +119,29 @@ def export_csv(rows: List[Dict[str, object]], out_path: Path) -> None:
             writer.writerow({col: row.get(col) for col in CSV_COLUMNS})
 
 
+def normalize_invoice(invoice: Dict[str, object]) -> Dict[str, object]:
+    line_items = invoice.get("line_items")
+    if isinstance(line_items, list):
+        line_items_count = len(line_items)
+    else:
+        line_items_count = 0
+
+    normalized = dict(invoice)
+    normalized["line_items_count"] = line_items_count
+    return normalized
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="List monthly invoices from exported JSONL.")
-    parser.add_argument("--month", required=True, help="Target month (YYYY-MM)")
+    parser.add_argument("--month", default=None, help="Target month (YYYY-MM)")
     parser.add_argument("--src", default=None, help="Path to invoices.jsonl")
     parser.add_argument("--limit", type=int, default=30, help="Max rows to display")
     parser.add_argument("--outdir", default=None, help="Custom output directory")
     args = parser.parse_args()
 
+    month_value = args.month or current_month_seoul()
     try:
-        month_prefix = parse_month(args.month)
+        month_prefix = parse_month(month_value)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(1)
@@ -127,42 +149,43 @@ def main() -> None:
     base_dir = Path("data") / "raw"
     src_path = Path(args.src) if args.src else find_latest_invoices_jsonl(base_dir)
     if not src_path or not src_path.exists():
-        print("No invoices.jsonl found under data/raw.", file=sys.stderr)
+        print(
+            "No invoices.jsonl found. Run: python export.py --resources invoices --out data/raw",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     invoices = list(read_jsonl(src_path))
-    filtered = filter_invoices(invoices, month_prefix)
+    filtered = [normalize_invoice(inv) for inv in filter_invoices(invoices, month_prefix)]
 
     total_sum = sum_amount(filtered, "total")
     balance_sum = sum_amount(filtered, "balance")
 
-    print(f"Month: {month_prefix}")
-    print(f"Count: {len(filtered)}")
-    print(f"Total sum: {total_sum}")
-    print(f"Balance sum: {balance_sum}")
-    print("")
-
-    if filtered:
-        table_columns = [
-            "invoice_number",
-            "date",
-            "customer_name",
-            "status",
-            "total",
-            "balance",
-            "currency_code",
-        ]
-        print(build_table(filtered, table_columns, args.limit))
-        print("")
-
     month_label = month_prefix.replace("-", "_")
     if args.outdir:
-        out_dir = Path(args.outdir)
+        out_dir = Path(args.outdir) / f"month={month_prefix}"
     else:
-        out_dir = src_path.parent / "out"
+        out_dir = src_path.parent / "out" / f"month={month_prefix}"
     out_path = out_dir / f"invoices_{month_label}.csv"
+
+    print(f"Month: {month_prefix}")
+    print(f"Source: {src_path}")
+    print(f"Count: {len(filtered)}")
+    print(f"Total sum: {total_sum}")
+    print(f"Balance sum: {balance_sum} | CSV: {out_path}")
+
+    table_columns = [
+        "invoice_number",
+        "date",
+        "customer_name",
+        "status",
+        "total",
+        "balance",
+        "currency_code",
+        "line_items_count",
+    ]
+    print(build_table(filtered, table_columns, args.limit))
     export_csv(filtered, out_path)
-    print(f"CSV: {out_path}")
 
 
 if __name__ == "__main__":
