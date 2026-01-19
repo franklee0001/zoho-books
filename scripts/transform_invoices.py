@@ -1,22 +1,63 @@
 import argparse
+import json
 import os
+import sys
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import psycopg
-from psycopg.extras import execute_values
 from psycopg.types.json import Json
 
 
 def build_conn() -> psycopg.Connection:
+    required = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
+    missing = [name for name in required if not os.getenv(name)]
+    if missing:
+        missing_list = ", ".join(missing)
+        print(
+            f"Missing env vars: {missing_list}. Required for Supabase/Postgres connection.",
+            file=sys.stderr,
+        )
+        print("Set PGSSLMODE=require for Supabase.", file=sys.stderr)
+        sys.exit(1)
+
+    sslmode = os.getenv("PGSSLMODE", "require")
+
     return psycopg.connect(
-        host=os.getenv("PGHOST", "localhost"),
-        port=os.getenv("PGPORT", "5432"),
-        dbname=os.getenv("PGDATABASE", "zoho"),
-        user=os.getenv("PGUSER", "zoho"),
-        password=os.getenv("PGPASSWORD", "zoho"),
+        host=os.getenv("PGHOST"),
+        port=os.getenv("PGPORT"),
+        dbname=os.getenv("PGDATABASE"),
+        user=os.getenv("PGUSER"),
+        password=os.getenv("PGPASSWORD"),
+        sslmode=sslmode,
     )
+
+
+def json_dumps_default(obj) -> str:
+    return json.dumps(obj, default=str, ensure_ascii=False)
+
+
+def J(obj) -> Json:
+    return Json(obj, dumps=json_dumps_default)
+
+
+def execute_values(cur, sql, argslist, template=None, page_size=1000) -> None:
+    if not argslist:
+        return
+    if sql.count("%s") != 1:
+        raise ValueError("execute_values expects a single %s placeholder in SQL")
+
+    value_template = template or "(" + ",".join(["%s"] * len(argslist[0])) + ")"
+    chunks = [argslist[i : i + page_size] for i in range(0, len(argslist), page_size)]
+
+    for chunk in chunks:
+        placeholders = ",".join([value_template] * len(chunk))
+        query = sql.replace("%s", placeholders)
+        flattened = []
+        for row in chunk:
+            flattened.extend(row)
+        cur.execute(query, flattened)
 
 
 def parse_timestamp(value: Optional[str]) -> Optional[datetime]:
@@ -141,7 +182,7 @@ def build_invoice_row(payload: Dict[str, Any]) -> Tuple:
         created_time,
         updated_time,
         last_modified_time,
-        Json(payload),
+        J(payload),
     )
 
 
@@ -171,7 +212,7 @@ def build_address_rows(payload: Dict[str, Any]) -> List[Tuple]:
                 address.get("zipcode") or address.get("zip"),
                 address.get("country"),
                 address.get("phone"),
-                Json(address),
+                J(address),
             )
         )
     return rows
@@ -188,12 +229,18 @@ def build_customer_row(payload: Dict[str, Any]) -> Optional[Tuple]:
         payload.get("email"),
         payload.get("phone"),
         payload.get("country"),
-        Json(payload),
+        J(payload),
         payload.get("_updated_time") or payload.get("_last_modified_time") or payload.get("_created_time"),
     )
 
 
 def upsert_invoices(conn: psycopg.Connection, rows: List[Tuple]) -> None:
+    if not rows:
+        return
+    deduped = {row[0]: row for row in rows}
+    if len(deduped) != len(rows):
+        print(f"invoices batch: {len(rows)} -> {len(deduped)} after dedupe")
+    rows = list(deduped.values())
     sql = """
         INSERT INTO invoices (
             invoice_id,
@@ -244,6 +291,10 @@ def upsert_invoices(conn: psycopg.Connection, rows: List[Tuple]) -> None:
 def upsert_addresses(conn: psycopg.Connection, rows: List[Tuple]) -> None:
     if not rows:
         return
+    deduped = {(row[0], row[1]): row for row in rows}
+    if len(deduped) != len(rows):
+        print(f"addresses batch: {len(rows)} -> {len(deduped)} after dedupe")
+    rows = list(deduped.values())
     sql = """
         INSERT INTO invoice_addresses (
             invoice_id,
@@ -277,6 +328,10 @@ def upsert_addresses(conn: psycopg.Connection, rows: List[Tuple]) -> None:
 def upsert_customers(conn: psycopg.Connection, rows: List[Tuple]) -> None:
     if not rows:
         return
+    deduped = {row[0]: row for row in rows}
+    if len(deduped) != len(rows):
+        print(f"customers batch: {len(rows)} -> {len(deduped)} after dedupe")
+    rows = list(deduped.values())
     sql = """
         INSERT INTO customers (
             customer_id,

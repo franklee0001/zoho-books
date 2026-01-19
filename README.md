@@ -75,6 +75,26 @@ Uses existing `data/raw/<timestamp>/invoices.jsonl` exports only (no API calls, 
 ## Postgres invoice pipeline
 Loads raw invoices JSONL into Postgres and upserts normalized tables.
 
+Never commit `.env` (secrets must stay local).
+
+### Supabase 사용 (권장)
+Direct host DNS가 실패하면 Session pooler만 사용한다.
+Pooler username은 반드시 <role>.<project-ref> 형식이다.
+chmod +x scripts/supabase_bootstrap.sh 를 실행한다.
+./scripts/supabase_bootstrap.sh 를 실행한다.
+스크립트에 project ref와 owner 비밀번호를 입력한다.
+psql 프롬프트에서 zoho_ingest 비밀번호를 입력한다.
+invoices.jsonl 경로를 입력하면 로더/트랜스폼이 실행된다.
+비밀번호가 노출되면 즉시 교체하고 .env는 커밋하지 않는다.
+
+검증 SQL (Supabase psql 예시):
+- `psql "sslmode=require host=db.<project-ref>.supabase.co port=5432 dbname=postgres user=zoho_ingest password=REPLACE_WITH_STRONG_PASSWORD" -c "select count(*) from invoice_raw;"`
+- `psql "sslmode=require host=db.<project-ref>.supabase.co port=5432 dbname=postgres user=zoho_ingest password=REPLACE_WITH_STRONG_PASSWORD" -c "select count(*) from invoices;"`
+- `psql "sslmode=require host=db.<project-ref>.supabase.co port=5432 dbname=postgres user=zoho_ingest password=REPLACE_WITH_STRONG_PASSWORD" -c "select invoice_id,count(*) from invoices group by invoice_id having count(*)>1;"`
+- `psql "sslmode=require host=db.<project-ref>.supabase.co port=5432 dbname=postgres user=zoho_ingest password=REPLACE_WITH_STRONG_PASSWORD" -c "select sum(balance) from invoices where status='overdue';"`
+- `psql "sslmode=require host=db.<project-ref>.supabase.co port=5432 dbname=postgres user=zoho_ingest password=REPLACE_WITH_STRONG_PASSWORD" -c "select customer_name,sum(balance) from invoices where balance>0 group by customer_name order by sum(balance) desc limit 20;"`
+
+### Docker 사용 (옵션)
 1) Start Postgres:
    - `docker compose up -d`
 2) Run migrations:
@@ -86,16 +106,13 @@ Loads raw invoices JSONL into Postgres and upserts normalized tables.
 5) Transform to normalized tables:
    - `python scripts/transform_invoices.py`
 
-Environment variables (optional, defaults match docker-compose):
-- `PGHOST` (default: localhost)
-- `PGPORT` (default: 5432)
-- `PGDATABASE` (default: zoho)
-- `PGUSER` (default: zoho)
-- `PGPASSWORD` (default: zoho)
+Environment variables (Supabase 권장):
+- `PGHOST`
+- `PGPORT`
+- `PGDATABASE`
+- `PGUSER`
+- `PGPASSWORD`
+- `PGSSLMODE` (default: require)
 
-Validation SQL:
-1) `select count(*) from invoice_raw;`
-2) `select count(*) from invoices;`
-3) `select invoice_id,count(*) from invoices group by invoice_id having count(*)>1;`
-4) `select sum(balance) from invoices where status='overdue';`
-5) `select customer_name,sum(balance) from invoices where balance>0 group by customer_name order by sum(balance) desc limit 20;`
+Note: This repo uses psycopg v3; psycopg2 extras are not available.
+JSON values are serialized with default=str to handle datetime objects.

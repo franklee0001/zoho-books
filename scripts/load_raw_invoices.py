@@ -2,22 +2,35 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 import psycopg
-from psycopg.extras import execute_values
 from psycopg.types.json import Json
 
 
 def build_conn() -> psycopg.Connection:
+    required = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
+    missing = [name for name in required if not os.getenv(name)]
+    if missing:
+        missing_list = ", ".join(missing)
+        print(
+            f"Missing env vars: {missing_list}. Required for Supabase/Postgres connection.",
+            file=sys.stderr,
+        )
+        print("Set PGSSLMODE=require for Supabase.", file=sys.stderr)
+        sys.exit(1)
+
+    sslmode = os.getenv("PGSSLMODE", "require")
+
     return psycopg.connect(
-        host=os.getenv("PGHOST", "localhost"),
-        port=os.getenv("PGPORT", "5432"),
-        dbname=os.getenv("PGDATABASE", "zoho"),
-        user=os.getenv("PGUSER", "zoho"),
-        password=os.getenv("PGPASSWORD", "zoho"),
+        host=os.getenv("PGHOST"),
+        port=os.getenv("PGPORT"),
+        dbname=os.getenv("PGDATABASE"),
+        user=os.getenv("PGUSER"),
+        password=os.getenv("PGPASSWORD"),
+        sslmode=sslmode,
     )
 
 
@@ -59,6 +72,24 @@ def parse_timestamp(value: Optional[str]) -> Optional[datetime]:
     return None
 
 
+def execute_values(cur, sql, argslist, template=None, page_size=1000) -> None:
+    if not argslist:
+        return
+    if sql.count("%s") != 1:
+        raise ValueError("execute_values expects a single %s placeholder in SQL")
+
+    value_template = template or "(" + ",".join(["%s"] * len(argslist[0])) + ")"
+    chunks = [argslist[i : i + page_size] for i in range(0, len(argslist), page_size)]
+
+    for chunk in chunks:
+        placeholders = ",".join([value_template] * len(chunk))
+        query = sql.replace("%s", placeholders)
+        flattened = []
+        for row in chunk:
+            flattened.extend(row)
+        cur.execute(query, flattened)
+
+
 def iter_records(
     path: Path,
 ) -> Iterable[
@@ -97,6 +128,10 @@ def iter_records(
 
 
 def upsert_batch(conn: psycopg.Connection, rows: List[Tuple]) -> None:
+    if not rows:
+        return
+    ingested_at = datetime.now(timezone.utc)
+    rows_with_ingest = [row + (ingested_at,) for row in rows]
     sql = """
         INSERT INTO invoice_raw (
             source_file,
@@ -117,7 +152,7 @@ def upsert_batch(conn: psycopg.Connection, rows: List[Tuple]) -> None:
             ingested_at = EXCLUDED.ingested_at
     """
     with conn.cursor() as cur:
-        execute_values(cur, sql, rows)
+        execute_values(cur, sql, rows_with_ingest)
     conn.commit()
 
 
