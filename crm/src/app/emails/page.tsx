@@ -27,6 +27,7 @@ interface ConversationRow {
   last_is_inbound: boolean;
   latest_id: number;
   attachment_count: number;
+  unread_count: number;
 }
 
 function formatDate(d: Date | null | undefined): string {
@@ -66,6 +67,7 @@ function buildHref(query: string, filter: string, page: number): string {
 
 const FILTER_OPTIONS = [
   { key: "all", labelKey: "emails.all" },
+  { key: "unread", labelKey: "emails.unread" },
   { key: "unanswered", labelKey: "emails.unanswered" },
   { key: "answered", labelKey: "emails.answered" },
 ];
@@ -107,13 +109,15 @@ export default async function EmailsPage({
         ? Prisma.sql`AND (e.subject ILIKE ${"%" + query + "%"} OR e.from_email ILIKE ${"%" + query + "%"} OR e.from_name ILIKE ${"%" + query + "%"} OR e.snippet ILIKE ${"%" + query + "%"})`
         : Prisma.empty;
 
-      // Filter: unanswered = last email is inbound, answered = last email is outbound
+      // Filter conditions
       const filterWhere =
-        filter === "unanswered"
-          ? Prisma.sql`AND sub.last_is_inbound = true`
-          : filter === "answered"
-            ? Prisma.sql`AND sub.last_is_inbound = false`
-            : Prisma.empty;
+        filter === "unread"
+          ? Prisma.sql`AND uc.unread_count > 0`
+          : filter === "unanswered"
+            ? Prisma.sql`AND sub.last_is_inbound = true`
+            : filter === "answered"
+              ? Prisma.sql`AND sub.last_is_inbound = false`
+              : Prisma.empty;
 
       // Query conversations grouped by pre-computed contact_email (indexed)
       const result = await prisma.$queryRaw<ConversationRow[]>`
@@ -143,6 +147,12 @@ export default async function EmailsPage({
           JOIN email_attachments ea ON ea.email_id = e.id
           WHERE e.contact_email IS NOT NULL
           GROUP BY e.contact_email
+        ),
+        unread_counts AS (
+          SELECT contact_email, COUNT(*)::int AS unread_count
+          FROM emails
+          WHERE contact_email IS NOT NULL AND 'UNREAD' = ANY(labels)
+          GROUP BY contact_email
         )
         SELECT
           l.contact_email,
@@ -155,10 +165,12 @@ export default async function EmailsPage({
           l.id::int AS latest_id,
           l.is_inbound AS last_is_inbound,
           ct.total_count::int AS email_count,
-          COALESCE(ac.att_count, 0)::int AS attachment_count
+          COALESCE(ac.att_count, 0)::int AS attachment_count,
+          COALESCE(uc.unread_count, 0)::int AS unread_count
         FROM latest l
         JOIN counts ct USING (contact_email)
         LEFT JOIN att_counts ac USING (contact_email)
+        LEFT JOIN unread_counts uc USING (contact_email)
         LEFT JOIN customers c ON c.customer_id = l.customer_id
         WHERE 1=1 ${filterWhere}
         ORDER BY l.date DESC NULLS LAST
@@ -170,6 +182,7 @@ export default async function EmailsPage({
         email_count: Number(r.email_count),
         latest_id: Number(r.latest_id),
         attachment_count: Number(r.attachment_count ?? 0),
+        unread_count: Number(r.unread_count ?? 0),
       }));
 
       // Count total conversations
@@ -179,9 +192,16 @@ export default async function EmailsPage({
           FROM emails
           WHERE contact_email IS NOT NULL ${searchWhere}
           ORDER BY contact_email, date DESC
+        ),
+        unread_counts AS (
+          SELECT contact_email, COUNT(*)::int AS unread_count
+          FROM emails
+          WHERE contact_email IS NOT NULL AND 'UNREAD' = ANY(labels)
+          GROUP BY contact_email
         )
         SELECT COUNT(*)::bigint AS count
         FROM latest sub
+        LEFT JOIN unread_counts uc USING (contact_email)
         WHERE 1=1 ${filterWhere}
       `;
       total = Number(countResult[0]?.count ?? 0);
@@ -275,53 +295,65 @@ export default async function EmailsPage({
           {/* Conversation list */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="divide-y divide-gray-100">
-              {conversations.map((conv) => (
-                <Link
-                  key={conv.contact_email}
-                  href={`/emails/${conv.latest_id}`}
-                  className="block px-6 py-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        {/* Unanswered badge */}
-                        {conv.last_is_inbound && (
-                          <span className="inline-block w-2 h-2 rounded-full bg-red-400 flex-shrink-0" title="Unanswered" />
-                        )}
-                        <span className="text-sm font-semibold text-gray-900 truncate">
-                          {conv.customer_name || conv.contact_name || conv.contact_email}
-                        </span>
-                        {conv.customer_name && (
-                          <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
-                            {t(locale, "emails.customer")}
+              {conversations.map((conv) => {
+                const isUnread = conv.unread_count > 0;
+                return (
+                  <Link
+                    key={conv.contact_email}
+                    href={`/emails/${conv.latest_id}`}
+                    className={`block px-6 py-4 hover:bg-gray-100 transition-colors ${isUnread ? "bg-blue-50 border-l-3 border-l-blue-500" : ""}`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {/* Unread indicator */}
+                          {isUnread && (
+                            <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-600 flex-shrink-0" title={t(locale, "emails.unread")} />
+                          )}
+                          {/* Unanswered badge */}
+                          {!isUnread && conv.last_is_inbound && (
+                            <span className="inline-block w-2 h-2 rounded-full bg-red-400 flex-shrink-0" title="Unanswered" />
+                          )}
+                          <span className={`text-sm truncate ${isUnread ? "font-bold text-gray-950" : "font-medium text-gray-700"}`}>
+                            {conv.customer_name || conv.contact_name || conv.contact_email}
                           </span>
-                        )}
-                        {conv.attachment_count > 0 && (
-                          <span className="text-gray-400 flex-shrink-0" title={`${conv.attachment_count} attachments`}>
-                            <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                            </svg>
+                          {conv.customer_name && (
+                            <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+                              {t(locale, "emails.customer")}
+                            </span>
+                          )}
+                          {isUnread && (
+                            <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-bold flex-shrink-0">
+                              {conv.unread_count}
+                            </span>
+                          )}
+                          {conv.attachment_count > 0 && (
+                            <span className="text-gray-400 flex-shrink-0" title={`${conv.attachment_count} attachments`}>
+                              <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                              </svg>
+                            </span>
+                          )}
+                          <span className={`text-xs flex-shrink-0 ${isUnread ? "text-gray-500" : "text-gray-400"}`}>
+                            {conv.email_count}
                           </span>
-                        )}
-                        <span className="text-xs text-gray-400 flex-shrink-0">
-                          {conv.email_count}
+                        </div>
+                        <p className={`text-sm truncate ${isUnread ? "font-bold text-gray-950" : "text-gray-600"}`}>
+                          {conv.latest_subject || "(no subject)"}
+                        </p>
+                        <p className={`text-xs truncate mt-0.5 ${isUnread ? "text-gray-700" : "text-gray-400"}`}>
+                          {conv.latest_snippet}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <span className={`text-xs whitespace-nowrap ${isUnread ? "font-bold text-blue-700" : "text-gray-400"}`}>
+                          {formatDate(conv.latest_date)}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-800 truncate">
-                        {conv.latest_subject || "(no subject)"}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate mt-0.5">
-                        {conv.latest_snippet}
-                      </p>
                     </div>
-                    <div className="flex-shrink-0 text-right">
-                      <span className="text-xs text-gray-400 whitespace-nowrap">
-                        {formatDate(conv.latest_date)}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
               {conversations.length === 0 && (
                 <div className="px-6 py-12 text-center text-gray-400 text-sm">
                   {query || filter !== "all"

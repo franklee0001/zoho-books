@@ -6,7 +6,7 @@ export function getGoogleAuthUrl(): string {
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: getRedirectUri(),
     response_type: "code",
-    scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email",
+    scope: "https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email",
     access_type: "offline",
     prompt: "consent",
   });
@@ -223,6 +223,51 @@ export async function sendGmailMessage(
   }
 
   return res.json();
+}
+
+// --- Mark as read ---
+
+export async function markAsRead(
+  accessToken: string,
+  gmailIds: string[]
+): Promise<void> {
+  if (gmailIds.length === 0) return;
+
+  if (gmailIds.length === 1) {
+    const res = await fetch(
+      `${GMAIL_API_BASE}/messages/${gmailIds[0]}/modify`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gmail mark-read failed: ${err}`);
+    }
+    return;
+  }
+
+  // Batch modify for multiple messages
+  const res = await fetch(`${GMAIL_API_BASE}/messages/batchModify`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ids: gmailIds,
+      removeLabelIds: ["UNREAD"],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gmail batch mark-read failed: ${err}`);
+  }
 }
 
 // --- Parsing helpers ---

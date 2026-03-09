@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ReplyForm from "./reply-form";
 import AttachmentList from "./attachment-preview";
+import MarkAsRead from "./mark-read";
 import { getLocale } from "@/lib/get-locale";
 import { t } from "@/lib/i18n";
 
@@ -59,7 +60,7 @@ export default async function EmailDetailPage({
             from_email: true, from_name: true, to_emails: true,
             subject: true, body_text: true, date: true,
             is_inbound: true, snippet: true, customer_id: true,
-            has_attachments: true,
+            has_attachments: true, labels: true,
             attachments: {
               select: {
                 id: true, filename: true, mime_type: true, size: true,
@@ -72,7 +73,7 @@ export default async function EmailDetailPage({
           from_email: string | null; from_name: string | null; to_emails: string | null;
           subject: string | null; body_text: string | null; date: Date | null;
           is_inbound: boolean; snippet: string | null; customer_id: string | null;
-          has_attachments: boolean;
+          has_attachments: boolean; labels: string[];
           attachments: { id: number; filename: string; mime_type: string | null; size: number | null }[];
         }>),
     // Find customer by contact email if not already linked
@@ -107,6 +108,9 @@ export default async function EmailDetailPage({
   // Latest inbound for reply
   const latestInbound = allEmails.find((e) => e.is_inbound);
 
+  // Check if any unread emails in this conversation
+  const hasUnread = allEmails.some((e) => e.labels?.includes("UNREAD"));
+
   // Group by month
   const grouped = new Map<string, typeof allEmails>();
   for (const e of allEmails) {
@@ -119,6 +123,9 @@ export default async function EmailDetailPage({
 
   return (
     <div>
+      {hasUnread && contactEmail && (
+        <MarkAsRead contactEmail={contactEmail} />
+      )}
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <Link
@@ -148,26 +155,34 @@ export default async function EmailDetailPage({
                 </span>
               </div>
               <div className="space-y-3 mt-2">
-                {emails.map((e) => (
+                {emails.map((e) => {
+                  const isEmailUnread = e.labels?.includes("UNREAD");
+                  return (
                   <div
                     key={e.id}
                     id={`email-${e.id}`}
-                    className={`rounded-xl border shadow-sm overflow-hidden ${
+                    className={`rounded-xl border-2 shadow-sm overflow-hidden ${
                       e.id === emailId
-                        ? "border-blue-300 ring-1 ring-blue-200"
-                        : "border-gray-200"
+                        ? "border-blue-400 ring-2 ring-blue-200"
+                        : isEmailUnread
+                          ? "border-blue-300 bg-blue-50"
+                          : "border-gray-200"
                     }`}
                   >
                     <div className={`px-5 py-3 flex items-center justify-between ${
-                      e.is_inbound ? "bg-white" : "bg-green-50"
+                      isEmailUnread
+                        ? "bg-blue-50"
+                        : e.is_inbound ? "bg-white" : "bg-green-50"
                     }`}>
                       <div className="flex items-center gap-2">
                         <span
-                          className={`w-2 h-2 rounded-full ${
-                            e.is_inbound ? "bg-blue-400" : "bg-green-400"
+                          className={`w-2.5 h-2.5 rounded-full ${
+                            isEmailUnread
+                              ? "bg-blue-600"
+                              : e.is_inbound ? "bg-blue-400" : "bg-green-400"
                           }`}
                         />
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className={`text-sm ${isEmailUnread ? "font-bold text-gray-950" : "font-medium text-gray-900"}`}>
                           {e.is_inbound
                             ? e.from_name || e.from_email
                             : t(locale, "emailDetail.me")}
@@ -179,6 +194,11 @@ export default async function EmailDetailPage({
                         }`}>
                           {e.is_inbound ? t(locale, "emailDetail.received") : t(locale, "emailDetail.sent")}
                         </span>
+                        {isEmailUnread && (
+                          <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-bold">
+                            {t(locale, "emails.unread")}
+                          </span>
+                        )}
                       </div>
                       <span className="text-xs text-gray-400">
                         {formatDate(e.date)}
@@ -203,7 +223,8 @@ export default async function EmailDetailPage({
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
