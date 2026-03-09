@@ -1,0 +1,490 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+
+model InvoiceRaw {
+  source_file        String
+  line_no            Int
+  invoice_id         String?
+  raw_json           Json
+  created_time       DateTime? @db.Timestamptz()
+  updated_time       DateTime? @db.Timestamptz()
+  last_modified_time DateTime? @db.Timestamptz()
+  ingested_at        DateTime  @default(now()) @db.Timestamptz()
+
+  @@id([source_file, line_no])
+  @@index([invoice_id], map: "idx_invoice_raw_invoice_id")
+  @@index([updated_time], map: "idx_invoice_raw_updated_time")
+  @@index([last_modified_time], map: "idx_invoice_raw_last_modified_time")
+  @@index([invoice_id, last_modified_time(sort: Desc), updated_time(sort: Desc), created_time(sort: Desc)], map: "idx_invoice_raw_invoice_time")
+  @@map("invoice_raw")
+}
+
+model Customer {
+  customer_id   String    @id
+  customer_name String?
+  company_name  String?
+  email         String?
+  phone         String?
+  country       String?
+  raw_json      Json
+  updated_at    DateTime? @db.Timestamptz()
+  invoices      Invoice[]
+  payments      CustomerPayment[]
+  emails        Email[]
+  distributors  Distributor[]
+
+  @@map("customers")
+}
+
+model Invoice {
+  invoice_id         String    @id
+  invoice_number     String?
+  customer_id        String?
+  status             String?
+  current_sub_status String?
+  date               DateTime? @db.Date
+  due_date           DateTime? @db.Date
+  currency_code      String?
+  total              Decimal?  @db.Decimal(20, 4)
+  balance            Decimal?  @db.Decimal(20, 4)
+  invoice_url        String?
+  salesperson_id     String?
+  salesperson_name   String?
+  created_time       DateTime? @db.Timestamptz()
+  updated_time       DateTime? @db.Timestamptz()
+  last_modified_time DateTime? @db.Timestamptz()
+  raw_json           Json
+  customer_name      String?
+
+  customer           Customer?           @relation(fields: [customer_id], references: [customer_id])
+  addresses          InvoiceAddress[]
+  lineItems          InvoiceLineItem[]
+  packingInfo        InvoicePackingInfo[]
+  generatedDocuments GeneratedDocument[]
+  paymentInvoices    PaymentInvoice[]
+  productionOrder    ProductionOrder?
+
+  @@index([status], map: "idx_invoices_status")
+  @@index([due_date], map: "idx_invoices_due_date")
+  @@index([customer_id], map: "idx_invoices_customer_id")
+  @@index([invoice_number], map: "idx_invoices_invoice_number")
+  @@map("invoices")
+}
+
+model InvoiceAddress {
+  invoice_id String
+  kind       String
+  attention  String?
+  address    String?
+  street2    String?
+  city       String?
+  state      String?
+  zipcode    String?
+  country    String?
+  phone      String?
+  raw_json   Json
+
+  invoice Invoice @relation(fields: [invoice_id], references: [invoice_id], onDelete: Cascade)
+
+  @@id([invoice_id, kind])
+  @@map("invoice_addresses")
+}
+
+model InvoiceLineItem {
+  line_item_id   String  @id
+  invoice_id     String
+  name           String?
+  description    String?
+  sku            String?
+  rate           Decimal? @db.Decimal(20, 4)
+  quantity       Decimal? @db.Decimal(20, 4)
+  discount       Decimal? @db.Decimal(20, 4)
+  tax_percentage Decimal? @db.Decimal(10, 4)
+  item_total     Decimal? @db.Decimal(20, 4)
+  item_id        String?
+  unit           String?
+  hsn_or_sac     String?
+  raw_json       Json
+  created_at     DateTime @default(now()) @db.Timestamptz()
+
+  invoice         Invoice              @relation(fields: [invoice_id], references: [invoice_id], onDelete: Cascade)
+  packingInfo     InvoicePackingInfo?
+  productionUnits ProductionUnit[]
+
+  @@index([invoice_id], map: "idx_line_items_invoice_id")
+  @@map("invoice_line_items")
+}
+
+model InvoicePackingInfo {
+  id              Int      @id @default(autoincrement())
+  invoice_id      String
+  line_item_id    String   @unique
+  packing_no      Int?
+  length_mm       Decimal? @db.Decimal(10, 2)
+  width_mm        Decimal? @db.Decimal(10, 2)
+  height_mm       Decimal? @db.Decimal(10, 2)
+  package_type    String?  @default("BOX")
+  net_weight_kg   Decimal? @db.Decimal(10, 3)
+  gross_weight_kg Decimal? @db.Decimal(10, 3)
+  updated_at      DateTime @default(now()) @db.Timestamptz()
+
+  invoice  Invoice         @relation(fields: [invoice_id], references: [invoice_id], onDelete: Cascade)
+  lineItem InvoiceLineItem @relation(fields: [line_item_id], references: [line_item_id], onDelete: Cascade)
+
+  @@unique([invoice_id, line_item_id])
+  @@map("invoice_packing_info")
+}
+
+model BusinessSettings {
+  key            String   @id @default("default")
+  company_name   String?
+  contact_name   String?
+  address        String?
+  city           String?
+  state          String?
+  zipcode        String?
+  country        String?
+  phone          String?
+  email          String?
+  dhl_account    String?
+  incoterms      String?  @default("EXW")
+  origin_country String?  @default("REPUBLIC OF KOREA")
+  packing_type   String?  @default("CARTON BOX")
+  exporter_code  String?
+  updated_at     DateTime @default(now()) @db.Timestamptz()
+
+  @@map("business_settings")
+}
+
+model AllowedUser {
+  email      String   @id
+  role       String
+  created_at DateTime @default(now()) @db.Timestamptz()
+
+  @@map("allowed_users")
+}
+
+model PaymentRaw {
+  source_file String
+  line_no     Int
+  payment_id  String?
+  raw_json    Json
+  ingested_at DateTime @default(now()) @db.Timestamptz()
+
+  @@id([source_file, line_no])
+  @@index([payment_id], map: "idx_payment_raw_payment_id")
+  @@map("payment_raw")
+}
+
+model CustomerPayment {
+  payment_id       String    @id
+  customer_id      String?
+  customer_name    String?
+  payment_number   String?
+  date             DateTime? @db.Date
+  amount           Decimal?  @db.Decimal(20, 4)
+  unused_amount    Decimal?  @db.Decimal(20, 4)
+  payment_mode     String?
+  description      String?
+  reference_number String?
+  currency_code    String?
+  account_id       String?
+  account_name     String?
+  created_time     DateTime? @db.Timestamptz()
+  updated_time     DateTime? @db.Timestamptz()
+  last_modified_time DateTime? @db.Timestamptz()
+  raw_json         Json
+
+  customer        Customer?        @relation(fields: [customer_id], references: [customer_id])
+  paymentInvoices PaymentInvoice[]
+
+  @@index([date], map: "idx_customer_payments_date")
+  @@index([customer_id], map: "idx_customer_payments_customer_id")
+  @@map("customer_payments")
+}
+
+model PaymentInvoice {
+  payment_id          String
+  invoice_id          String
+  amount_applied      Decimal? @db.Decimal(20, 4)
+  tax_amount_withheld Decimal? @db.Decimal(20, 4)
+
+  payment CustomerPayment @relation(fields: [payment_id], references: [payment_id], onDelete: Cascade)
+  invoice Invoice         @relation(fields: [invoice_id], references: [invoice_id], onDelete: Cascade)
+
+  @@id([payment_id, invoice_id])
+  @@index([invoice_id], map: "idx_payment_invoices_invoice_id")
+  @@map("payment_invoices")
+}
+
+model ProductionOrder {
+  id                    Int       @id @default(autoincrement())
+  invoice_id            String    @unique
+  status                String    @default("confirmed")
+  priority              Int       @default(0)
+  notes                 String?
+  target_date           DateTime? @db.Date
+  shipping_deadline     DateTime? @db.Date
+  production_start_date DateTime? @db.Date
+  production_end_date   DateTime? @db.Date
+  tracking_number       String?
+  shipping_method       String?
+  completed_at          DateTime? @db.Timestamptz()
+  shipped_at            DateTime? @db.Timestamptz()
+  created_at            DateTime  @default(now()) @db.Timestamptz()
+  updated_at            DateTime  @default(now()) @db.Timestamptz()
+
+  invoice    Invoice              @relation(fields: [invoice_id], references: [invoice_id], onDelete: Cascade)
+  statusLogs ProductionStatusLog[]
+  units      ProductionUnit[]
+
+  @@index([status], map: "idx_production_orders_status")
+  @@index([target_date], map: "idx_production_orders_target_date")
+  @@index([invoice_id], map: "idx_production_orders_invoice_id")
+  @@map("production_orders")
+}
+
+model ProductionStatusLog {
+  id                  Int      @id @default(autoincrement())
+  production_order_id Int
+  old_status          String?
+  new_status          String
+  changed_by          String   @default("system")
+  note                String?
+  changed_at          DateTime @default(now()) @db.Timestamptz()
+
+  productionOrder ProductionOrder @relation(fields: [production_order_id], references: [id], onDelete: Cascade)
+
+  @@index([production_order_id], map: "idx_production_status_log_order_id")
+  @@index([changed_at], map: "idx_production_status_log_changed_at")
+  @@map("production_status_log")
+}
+
+model ProductionUnit {
+  id                  Int       @id @default(autoincrement())
+  production_order_id Int
+  line_item_id        String
+  category_slug       String
+  unit_index          Int
+  serial_number       String?
+  model_version       String?
+  is_completed        Boolean   @default(false)
+  completed_at        DateTime? @db.Timestamptz()
+  created_at          DateTime  @default(now()) @db.Timestamptz()
+
+  productionOrder ProductionOrder @relation(fields: [production_order_id], references: [id], onDelete: Cascade)
+  lineItem        InvoiceLineItem @relation(fields: [line_item_id], references: [line_item_id], onDelete: Cascade)
+
+  @@index([production_order_id], map: "idx_production_units_order_id")
+  @@index([category_slug], map: "idx_production_units_category")
+  @@map("production_units")
+}
+
+model GmailToken {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  access_token  String
+  refresh_token String
+  token_expiry  DateTime? @db.Timestamptz()
+  history_id    String?
+  updated_at    DateTime  @default(now()) @db.Timestamptz()
+
+  @@map("gmail_tokens")
+}
+
+model Email {
+  id              Int       @id @default(autoincrement())
+  gmail_id        String    @unique
+  thread_id       String?
+  from_email      String?
+  from_name       String?
+  to_emails       String?
+  cc_emails       String?
+  subject         String?
+  body_text       String?
+  body_html       String?
+  date            DateTime? @db.Timestamptz()
+  labels          String[]
+  is_inbound      Boolean   @default(true)
+  has_attachments Boolean   @default(false)
+  snippet         String?
+  customer_id     String?
+  contact_email   String?
+  account_email   String?
+  raw_json        Json?
+  fetched_at      DateTime  @default(now()) @db.Timestamptz()
+
+  customer    Customer?         @relation(fields: [customer_id], references: [customer_id])
+  attachments EmailAttachment[]
+
+  @@index([gmail_id], map: "idx_emails_gmail_id")
+  @@index([account_email], map: "idx_emails_account_email")
+  @@index([thread_id], map: "idx_emails_thread_id")
+  @@index([from_email], map: "idx_emails_from_email")
+  @@index([contact_email], map: "idx_emails_contact_email")
+  @@index([date(sort: Desc)], map: "idx_emails_date")
+  @@index([customer_id], map: "idx_emails_customer_id")
+  @@index([is_inbound], map: "idx_emails_is_inbound")
+  @@map("emails")
+}
+
+model EmailAttachment {
+  id                  Int       @id @default(autoincrement())
+  email_id            Int
+  gmail_message_id    String
+  gmail_attachment_id String
+  filename            String
+  mime_type           String?
+  size                Int?
+  storage_path        String?
+  cached_at           DateTime? @db.Timestamptz()
+  rag_document_id     Int?
+  created_at          DateTime  @default(now()) @db.Timestamptz()
+
+  email       Email        @relation(fields: [email_id], references: [id], onDelete: Cascade)
+  ragDocument RagDocument? @relation(fields: [rag_document_id], references: [id], onDelete: SetNull)
+
+  @@unique([gmail_message_id, gmail_attachment_id], map: "idx_email_attachments_gmail")
+  @@index([email_id], map: "idx_email_attachments_email_id")
+  @@index([rag_document_id], map: "idx_email_attachments_rag")
+  @@map("email_attachments")
+}
+
+model Distributor {
+  id              Int       @id @default(autoincrement())
+  company_name    String
+  contact_name    String?
+  email           String?
+  country_code    String
+  country_name    String
+  product_scope   String    @default("all")
+  products        String?
+  stage           String    @default("lead")
+  notes           String?
+  customer_id     String?
+  created_at      DateTime  @default(now()) @db.Timestamptz()
+  updated_at      DateTime  @default(now()) @db.Timestamptz()
+
+  customer        Customer? @relation(fields: [customer_id], references: [customer_id])
+
+  @@index([country_code], map: "idx_distributors_country_code")
+  @@index([stage], map: "idx_distributors_stage")
+  @@map("distributors")
+}
+
+model GeneratedDocument {
+  id           Int      @id @default(autoincrement())
+  invoice_id   String
+  doc_type     String
+  file_name    String
+  storage_path String
+  file_size    Int?
+  generated_at DateTime @default(now()) @db.Timestamptz()
+
+  invoice Invoice @relation(fields: [invoice_id], references: [invoice_id], onDelete: Cascade)
+
+  @@unique([invoice_id, doc_type])
+  @@index([invoice_id], map: "idx_generated_docs_invoice_id")
+  @@map("generated_documents")
+}
+
+model RagDocument {
+  id            Int      @id @default(autoincrement())
+  category      String   @default("misc")
+  file_name     String
+  file_type     String
+  file_size     Int
+  status        String   @default("processing")
+  chunk_count   Int      @default(0)
+  error_message String?
+  created_at    DateTime @default(now()) @db.Timestamptz()
+  updated_at    DateTime @default(now()) @db.Timestamptz()
+
+  chunks              RagChunk[]
+  emailAttachments    EmailAttachment[]
+
+  @@map("rag_documents")
+}
+
+model RagChunk {
+  id          Int      @id @default(autoincrement())
+  document_id Int
+  content     String
+  chunk_index Int      @default(0)
+  metadata    Json     @default("{}")
+  created_at  DateTime @default(now()) @db.Timestamptz()
+  // embedding vector(1536) managed via raw SQL
+
+  document RagDocument @relation(fields: [document_id], references: [id], onDelete: Cascade)
+
+  @@index([document_id], map: "idx_rag_chunks_document_id")
+  @@map("rag_chunks")
+}
+
+model ChatConversation {
+  id         Int      @id @default(autoincrement())
+  title      String?
+  created_at DateTime @default(now()) @db.Timestamptz()
+  updated_at DateTime @default(now()) @db.Timestamptz()
+
+  messages ChatMessage[]
+
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id              Int      @id @default(autoincrement())
+  conversation_id Int
+  role            String
+  content         String
+  sources         Json     @default("[]")
+  created_at      DateTime @default(now()) @db.Timestamptz()
+
+  conversation ChatConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id], map: "idx_chat_messages_conversation_id")
+  @@index([created_at], map: "idx_chat_messages_created_at")
+  @@map("chat_messages")
+}
+
+model Lead {
+  id               Int       @id @default(autoincrement())
+  unique_key       String    @unique
+  timestamp        DateTime? @db.Timestamptz()
+  date             String?
+  email            String?
+  name             String?
+  company          String?
+  country          String?
+  phone            String?
+  website          String?
+  source           String?
+  product_interest String?
+  quantity         String?
+  message          String?
+  subject          String?
+  reply_status     String?
+  deal_status      String?   @default("new")
+  order_status     String?
+  amount           Decimal?  @db.Decimal(15, 2)
+  notes            String?
+  distributor      String?
+  extra_data       Json      @default("{}")
+  synced_at        DateTime? @db.Timestamptz()
+  created_at       DateTime  @default(now()) @db.Timestamptz()
+  updated_at       DateTime  @default(now()) @db.Timestamptz()
+
+  @@index([country])
+  @@index([deal_status])
+  @@index([email])
+  @@index([synced_at])
+  @@map("leads")
+}

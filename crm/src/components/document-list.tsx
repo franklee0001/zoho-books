@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { t, type Locale } from "@/lib/i18n";
 
 interface GeneratedDocument {
   id: number;
@@ -16,12 +17,13 @@ interface GeneratedDocument {
 interface DocumentListProps {
   documents: GeneratedDocument[];
   invoiceId: string;
+  locale: Locale;
 }
 
 const DOC_SLOTS = [
-  { type: "commercial_invoice", label: "Commercial Invoice", uploadable: false },
-  { type: "packing_list", label: "Packing List", uploadable: true, replaceLabel: "Replace PL" },
-  { type: "waybill", label: "Waybill", uploadable: true, replaceLabel: "Replace" },
+  { type: "commercial_invoice", labelKey: "docList.commercialInvoice", uploadable: false, replaceLabelKey: "" },
+  { type: "packing_list", labelKey: "docList.packingList", uploadable: true, replaceLabelKey: "docList.replacePL" },
+  { type: "waybill", labelKey: "docList.waybill", uploadable: true, replaceLabelKey: "docList.replace" },
 ] as const;
 
 function formatFileSize(bytes: number | null): string {
@@ -90,11 +92,13 @@ function DocumentSlot({
   slot,
   invoiceId,
   onUploaded,
+  locale,
 }: {
   doc: GeneratedDocument | undefined;
   slot: (typeof DOC_SLOTS)[number];
   invoiceId: string;
   onUploaded: () => void;
+  locale: Locale;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -138,7 +142,7 @@ function DocumentSlot({
   return (
     <div className={`rounded-lg border ${slotColor} p-4`}>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-gray-700">{slot.label}</h3>
+        <h3 className="text-sm font-semibold text-gray-700">{t(locale, slot.labelKey)}</h3>
       </div>
 
       {doc ? (
@@ -160,7 +164,7 @@ function DocumentSlot({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
             >
               <DownloadIcon />
-              Download
+              {t(locale, "docList.download")}
             </a>
             {slot.uploadable && (
               <>
@@ -170,7 +174,7 @@ function DocumentSlot({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   <UploadIcon />
-                  {uploading ? "Uploading..." : slot.replaceLabel}
+                  {uploading ? t(locale, "docList.uploading") : t(locale, slot.replaceLabelKey)}
                 </button>
                 <input
                   ref={fileRef}
@@ -185,7 +189,7 @@ function DocumentSlot({
         </div>
       ) : (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-400">No file uploaded</p>
+          <p className="text-sm text-gray-400">{t(locale, "docList.noFile")}</p>
           {slot.uploadable && (
             <>
               <button
@@ -194,7 +198,7 @@ function DocumentSlot({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
               >
                 <UploadIcon />
-                {uploading ? "Uploading..." : `Upload ${slot.label}`}
+                {uploading ? t(locale, "docList.uploading") : t(locale, "docList.upload", { label: t(locale, slot.labelKey) })}
               </button>
               <input
                 ref={fileRef}
@@ -218,6 +222,7 @@ function DocumentSlot({
 export default function DocumentList({
   documents,
   invoiceId,
+  locale,
 }: DocumentListProps) {
   const router = useRouter();
   const [regenerating, setRegenerating] = useState(false);
@@ -257,13 +262,13 @@ export default function DocumentList({
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Documents</h2>
+        <h2 className="text-lg font-semibold text-gray-900">{t(locale, "docList.title")}</h2>
         <button
           onClick={handleRegenerate}
           disabled={regenerating}
           className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {regenerating ? "Regenerating..." : "Regenerate CI & PL"}
+          {regenerating ? t(locale, "docList.regenerating") : t(locale, "docList.regenerate")}
         </button>
       </div>
 
@@ -281,6 +286,7 @@ export default function DocumentList({
             slot={slot}
             invoiceId={invoiceId}
             onUploaded={() => router.refresh()}
+            locale={locale}
           />
         ))}
       </div>

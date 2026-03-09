@@ -8,10 +8,10 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from zoho_client import ZohoClient
 
 RESOURCE_CONFIG = {
-    "contacts": {"path": "/invoice/v3/contacts", "list_key": "contacts"},
-    "items": {"path": "/invoice/v3/items", "list_key": "items"},
-    "invoices": {"path": "/invoice/v3/invoices", "list_key": "invoices"},
-    "customer_payments": {"path": "/invoice/v3/customerpayments", "list_key": "customerpayments"},
+    "contacts": {"path": "/books/v3/contacts", "list_key": "contacts"},
+    "items": {"path": "/books/v3/items", "list_key": "items"},
+    "invoices": {"path": "/books/v3/invoices", "list_key": "invoices"},
+    "customer_payments": {"path": "/books/v3/customerpayments", "list_key": "customerpayments"},
 }
 
 def parse_resources(raw: str) -> List[str]:
@@ -42,7 +42,7 @@ def write_jsonl(path: str, records: Iterable[Dict[str, object]]) -> int:
 def fetch_invoice_ids(client: ZohoClient, per_page: int) -> List[str]:
     invoice_ids: List[str] = []
     for _, invoices in client.get_paginated(
-        "/invoice/v3/invoices", params=None, list_key="invoices", per_page=per_page
+        "/books/v3/invoices", params=None, list_key="invoices", per_page=per_page
     ):
         for invoice in invoices:
             invoice_id = invoice.get("invoice_id")
@@ -56,13 +56,13 @@ def probe_invoice_payments_endpoint(
     candidates = [
         {
             "mode": "global",
-            "path_template": "/invoice/v3/invoices/payments",
+            "path_template": "/books/v3/invoices/payments",
             "list_key": "payments",
             "invoice_id_param": True,
         },
         {
             "mode": "per_invoice",
-            "path_template": "/invoice/v3/invoices/{invoice_id}/payments",
+            "path_template": "/books/v3/invoices/{invoice_id}/payments",
             "list_key": "payments",
             "invoice_id_param": False,
         },

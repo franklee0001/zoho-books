@@ -35,7 +35,7 @@ class ZohoClient:
     def _auth_headers(self) -> Dict[str, str]:
         return {
             "Authorization": f"Zoho-oauthtoken {self.access_token}",
-            "X-com-zoho-invoice-organizationid": str(self.org_id),
+            "X-com-zoho-books-organizationid": str(self.org_id),
         }
 
     def _sleep_with_backoff(self, attempt: int, retry_after: Optional[str] = None) -> None:

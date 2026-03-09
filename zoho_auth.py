@@ -21,7 +21,7 @@ def refresh_access_token() -> str:
         "grant_type": "refresh_token",
     }
 
-    r = requests.post(token_url, params=params, timeout=30)
+    r = requests.post(token_url, data=params, timeout=30)
     r.raise_for_status()
     data = r.json()
 
