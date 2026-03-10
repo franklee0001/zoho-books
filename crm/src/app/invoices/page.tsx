@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { getLocale } from "@/lib/get-locale";
 import { t } from "@/lib/i18n";
+import InvoiceSyncButton from "./invoice-sync-button";
 
 export const dynamic = "force-dynamic";
 
@@ -145,11 +146,14 @@ export default async function InvoicesPage({
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">{t(locale, "invoices.title")}</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {t(locale, "invoices.total", { count: total.toLocaleString() })}
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{t(locale, "invoices.title")}</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {t(locale, "invoices.total", { count: total.toLocaleString() })}
+          </p>
+        </div>
+        <InvoiceSyncButton locale={locale} />
       </div>
 
       {error && (

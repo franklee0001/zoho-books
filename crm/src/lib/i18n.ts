@@ -66,6 +66,7 @@ const dict: Record<Locale, Record<string, string>> = {
     "customers.connectDb": "데이터베이스를 연결하면 고객을 볼 수 있습니다.",
     "customers.noMatch": "\"{query}\"에 일치하는 고객이 없습니다",
     "customers.noCustomers": "고객이 없습니다.",
+    "customers.unknownCountry": "미지정",
 
     // Invoices
     "invoices.title": "송장",
@@ -275,7 +276,9 @@ const dict: Record<Locale, Record<string, string>> = {
     // Sync Button
     "sync.syncOrders": "새 주문 동기화",
     "sync.syncEmails": "이메일 동기화",
+    "sync.syncInvoices": "송장 동기화",
     "sync.syncing": "동기화 중...",
+    "sync.invoiceSyncResult": "{invoices}건 송장, {customers}건 고객, {lineItems}건 품목 동기화",
 
     // Emails
     "emails.title": "이메일",
@@ -551,6 +554,7 @@ const dict: Record<Locale, Record<string, string>> = {
     "customers.connectDb": "Connect database to see customers.",
     "customers.noMatch": "No customers matching \"{query}\"",
     "customers.noCustomers": "No customers found.",
+    "customers.unknownCountry": "Unknown",
 
     // Invoices
     "invoices.title": "Invoices",
@@ -760,7 +764,9 @@ const dict: Record<Locale, Record<string, string>> = {
     // Sync Button
     "sync.syncOrders": "Sync New Orders",
     "sync.syncEmails": "Sync Emails",
+    "sync.syncInvoices": "Sync Invoices",
     "sync.syncing": "Syncing...",
+    "sync.invoiceSyncResult": "{invoices} invoices, {customers} customers, {lineItems} line items synced",
 
     // Emails
     "emails.title": "Emails",
