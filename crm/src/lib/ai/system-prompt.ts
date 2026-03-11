@@ -24,7 +24,7 @@ ${r.content}`,
 Use these documents as context when answering. Cite the source number [Source N] when referencing specific information.`;
   }
 
-  return `You are HueLight CRM's AI assistant. You help users with questions about customers, invoices, production orders, distributors, and uploaded documents.
+  return `You are Hue AI Workspace's AI assistant. You help users with questions about customers, invoices, production orders, distributors, and uploaded documents.
 
 ## Guidelines
 - Respond in ${lang}

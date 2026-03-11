@@ -2,6 +2,27 @@ export type Locale = "ko" | "en";
 
 const dict: Record<Locale, Record<string, string>> = {
   ko: {
+    // Auth
+    "auth.login": "로그인",
+    "auth.loginWithGoogle": "Google로 로그인",
+    "auth.notAllowed": "허용되지 않은 이메일입니다. 관리자에게 문의하세요.",
+    "auth.logout": "로그아웃",
+
+    // Admin
+    "admin.users": "사용자 관리",
+    "admin.usersSubtitle": "허용된 사용자 목록",
+    "admin.email": "이메일",
+    "admin.role": "역할",
+    "admin.createdAt": "등록일",
+    "admin.actions": "액션",
+    "admin.addUser": "사용자 추가",
+    "admin.emailPlaceholder": "이메일 입력",
+    "admin.add": "추가",
+    "admin.adding": "추가 중...",
+    "admin.deleteConfirm": "이 사용자를 삭제하시겠습니까?",
+    "admin.noUsers": "등록된 사용자가 없습니다.",
+    "admin.cannotDeleteSelf": "자기 자신은 삭제할 수 없습니다.",
+
     // Sidebar / Nav
     "nav.dashboard": "대시보드",
     "nav.customers": "고객",
@@ -10,9 +31,9 @@ const dict: Record<Locale, Record<string, string>> = {
     "nav.emails": "이메일",
     "nav.documents": "문서",
     "nav.settings": "설정",
-    "sidebar.title": "HueLight CRM",
-    "sidebar.subtitle": "송장 관리",
-    "sidebar.connected": "HueLight DB 연결됨",
+    "sidebar.title": "Hue AI",
+    "sidebar.subtitle": "Workspace",
+    "sidebar.connected": "Hue AI 연결됨",
 
     "nav.distributors": "총판",
 
@@ -38,7 +59,7 @@ const dict: Record<Locale, Record<string, string>> = {
 
     // Dashboard
     "dashboard.title": "대시보드",
-    "dashboard.subtitle": "HueLight 데이터 개요",
+    "dashboard.subtitle": "Hue AI 데이터 개요",
     "dashboard.totalRevenue": "총 매출",
     "dashboard.outstandingBalance": "미수금",
     "dashboard.invoices": "송장",
@@ -490,6 +511,27 @@ const dict: Record<Locale, Record<string, string>> = {
     "aiChat.errorMessage": "오류가 발생했습니다. 다시 시도해주세요.",
   },
   en: {
+    // Auth
+    "auth.login": "Login",
+    "auth.loginWithGoogle": "Sign in with Google",
+    "auth.notAllowed": "This email is not allowed. Contact your administrator.",
+    "auth.logout": "Logout",
+
+    // Admin
+    "admin.users": "User Management",
+    "admin.usersSubtitle": "Allowed users list",
+    "admin.email": "Email",
+    "admin.role": "Role",
+    "admin.createdAt": "Created",
+    "admin.actions": "Actions",
+    "admin.addUser": "Add User",
+    "admin.emailPlaceholder": "Enter email",
+    "admin.add": "Add",
+    "admin.adding": "Adding...",
+    "admin.deleteConfirm": "Delete this user?",
+    "admin.noUsers": "No users registered.",
+    "admin.cannotDeleteSelf": "Cannot delete yourself.",
+
     // Sidebar / Nav
     "nav.dashboard": "Dashboard",
     "nav.customers": "Customers",
@@ -498,9 +540,9 @@ const dict: Record<Locale, Record<string, string>> = {
     "nav.emails": "Emails",
     "nav.documents": "Documents",
     "nav.settings": "Settings",
-    "sidebar.title": "HueLight CRM",
-    "sidebar.subtitle": "Invoice Management",
-    "sidebar.connected": "Connected to HueLight DB",
+    "sidebar.title": "Hue AI",
+    "sidebar.subtitle": "Workspace",
+    "sidebar.connected": "Connected to Hue AI",
 
     "nav.distributors": "Distributors",
 
@@ -526,7 +568,7 @@ const dict: Record<Locale, Record<string, string>> = {
 
     // Dashboard
     "dashboard.title": "Dashboard",
-    "dashboard.subtitle": "HueLight data overview",
+    "dashboard.subtitle": "Hue AI data overview",
     "dashboard.totalRevenue": "Total Revenue",
     "dashboard.outstandingBalance": "Outstanding Balance",
     "dashboard.invoices": "Invoices",
